@@ -1,0 +1,70 @@
+### From "http://www.bio-info-trainee.com/3409.html"
+## 1.Install soma R packages:
+# data packages:ALL, CLL, pasilla, airway 
+# software packages: limma，DESeq2，clusterProfiler 
+# tool packages: reshape2
+# drawing package: ggplot2
+rm(list=ls())
+BiocManager::install("ALL")
+BiocManager::install("CLL")
+BiocManager::install("pasilla")
+BiocManager::install("airway")
+BiocManager::install("limma")
+BiocManager::install("DESeq2")
+BiocManager::install("clusterProfiler")
+BiocManager::install("reshape2")
+BiocManager::install("ggplot2")
+library(ALL)
+library(CL)
+library(pasilla)
+library(airway)
+library(limma)
+library(DESeq2)
+library(clusterProfiler)
+library(reshape2)
+library(ggplot2)
+
+## 2. Review CLL and make expression matrix and group matrix and contrast matrix from CLL
+data("sCLLex")
+# expression matrix
+exprSet=exprs(sCLLex)
+dim(exprSet)
+boxplot(exprSet)
+group_list=as.character(pdata[,2])
+# group matrix
+design <- model.matrix(~0+factor(group_list))
+colnames(design)=levels(factor(group_list))
+View(design)
+# contrast matrix
+contrast.matrix<-makeContrasts(paste0(unique(group_list),collapse = "-"),levels = design)
+View(contrast.matrix)
+# the case above has only two groups, if there are more two groups, we should do as the below
+group_list = c('A', 'A', 'A', 'B','B','B','C','C','C')
+design <- model.matrix(~ 0+factor(group_list))
+contrast.matrix <- makeContrasts(group2-group1, group3-group2, group3-group1, levels=design)
+colnames(design) <- c("group1", "group2", "group3")
+rownames(design) <- colnames(exprSet)
+contrast.matrix <- makeContrasts(group2-group1, group3-group2, group3-group1, levels=design)
+
+## 3.install hgu95av2.db and find the probe that corrosponds to gene TP53
+BiocManager::install("hgu95av2.db")
+library(hgu95av2.db)
+ls("package:hgu95av2.db")
+# extract the content with SYMBOL
+ids=toTable(hgu95av2SYMBOL)
+# find the probe that corrosponds to gene TP53
+ids[grep('^TP53$',ids$symbol),]
+subset(ids, ids$symbo=="TP53")
+
+## 4. Explore relationships between genes and probes in ids
+length(unique(ids$symbol))
+table(table(ids$symbol) > 1)
+
+## 5. Count how many probes in exprSet has no cprrosponning SYMBOL in ids, and filter them 
+ table(rownames(exprSet)%in% ids$probe_id)
+ dim(exprSet)
+ exprSet = exprSet[(rownames(exprSet)%in% ids$probe_id),]
+ dim(exprSet)
+ 
+## combine the expression matrix and 
+ 
