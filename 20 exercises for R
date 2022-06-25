@@ -15,7 +15,7 @@ BiocManager::install("clusterProfiler")
 BiocManager::install("reshape2")
 BiocManager::install("ggplot2")
 library(ALL)
-library(CL)
+library(CLL)
 library(pasilla)
 library(airway)
 library(limma)
@@ -27,10 +27,11 @@ library(ggplot2)
 ## 2. Review CLL and make expression matrix and group matrix and contrast matrix from CLL
 data("sCLLex")
 # expression matrix
-exprSet = exprs(sCLLex)
+exprSet=exprs(sCLLex)
 dim(exprSet)
 boxplot(exprSet)
-group_list = as.character(pdata[,2])
+pdata=pData(sCLLex)
+group_list=as.character(pdata[,2])
 # group matrix
 design <- model.matrix(~0+factor(group_list))
 colnames(design)=levels(factor(group_list))
@@ -54,7 +55,7 @@ ls("package:hgu95av2.db")
 ids=toTable(hgu95av2SYMBOL)
 # find the probe that corrosponds to gene TP53
 ids[grep('^TP53$',ids$symbol),]
-subset(ids, ids$symbo == "TP53")
+subset(ids, ids$symbo=="TP53")
 
 ## 4. Explore relationships between genes and probes in ids
 length(unique(ids$symbol))
@@ -66,7 +67,7 @@ dim(exprSet)
 exprSet = exprSet[(rownames(exprSet)%in% ids$probe_id),]
 dim(exprSet)
  
-## combine the expression matrix and ids
+## 6. combine the expression matrix and ids
 # method one:
 tmp = by(exprSet,ids$symbol, function(x) rownames(x)[which.max(rowMeans(x))])
 probes = as.character(tmp) 
@@ -80,7 +81,7 @@ ids = ids[order(ids$symbol,ids$median, decreasing = T),]
 ids = ids[!duplicated(ids$symbol),]
 rownames(exprSet)=ids[match(rownames(exprSet),ids$probe_id),2]
 
-## Common explroation of expression matrix
+## 7.Common explroation of expression matrix
 # transform the expresion matrix to long matrix
 exprSet_L = melt(exprSet)
 colnames(exprSet_L)=c('probe','sample','value')
@@ -93,3 +94,30 @@ print(HIST)
 # Dentisy plot
 DENSI=ggplot(exprSet_L,aes(value,col=group))+geom_density()+facet_wrap(~sample, nrow = 4)
 print(DENSI)
+
+## 8. Caculate the statistics criteria of mean,median,max,min,sd,var and mad of each genes in all samples, then order genes by mad 
+      value and extract the top 50 genes expression matrix
+g_mean=sort(apply(exprSet,1,mean))
+g_meadian=sort(apply(exprSet,1,median))
+g_max=sort(apply(exprSet,1,max))
+g_min=sort(apply(exprSet,1,min))
+g_sd=sort(apply(exprSet,1,sd))
+g_var=sort(apply(exprSet,1,var))
+g_mad=tail(sort(apply(exprSet,1,mad)),50)
+
+## 9. According to the expression matrix g_mad obtained above, visualizing the matrix with heatmap.(heatmap,pheatmap, ggplot2)
+# heatmap
+chosen_genenames=names(g_mad)
+chosen_gene=exprSet[chosen_genenames,]
+chosen_gene=t(scale(t(chosen_gene)))
+heatmap(chosen_gene)
+# pheatmap 
+# making annotation_col (rownames of exprSet + group_list)
+annotation_col=as.data.frame(group_list)
+row.names(annotation_col)=colnames(chosen_gene)
+pheatmap(chosen_gene,annotation_col=annotation_col)
+# ggplot2
+C=as.data.frame(melt(chosen_gene))
+p1<-ggplot(C,aes(x=Var2 ,y=Var1)) # the outcome is an inmorm pure grey picture, but when I use another datafram, 
+                                    the outcome is a norm heatmap, don't figure out reasons
+p2<-ggplot(C,aes(x=Var2 ,y=Var1))+geom_tile(aes(fill=value)) 
