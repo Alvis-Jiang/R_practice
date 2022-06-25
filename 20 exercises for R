@@ -120,4 +120,4 @@ pheatmap(chosen_gene,annotation_col=annotation_col)
 C=as.data.frame(melt(chosen_gene))
 p1<-ggplot(C,aes(x=Var2 ,y=Var1)) # the outcome is an inmorm pure grey picture, but when I use another datafram, 
                                     the outcome is a norm heatmap, don't figure out reasons
-p2<-ggplot(C,aes(x=Var2 ,y=Var1))+geom_tile(aes(fill=value)) 
+p2<-ggplot(C,aes(x=Var2 ,y=Var1))+geom_tile(aes(fill=value))
