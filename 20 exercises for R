@@ -14,6 +14,7 @@ BiocManager::install("DESeq2")
 BiocManager::install("clusterProfiler")
 BiocManager::install("reshape2")
 BiocManager::install("ggplot2")
+BiocManager::install("psych")
 library(ALL)
 library(CLL)
 library(pasilla)
@@ -23,6 +24,7 @@ library(DESeq2)
 library(clusterProfiler)
 library(reshape2)
 library(ggplot2)
+library(psych)
 
 ## 2. Review CLL and make expression matrix and group matrix and contrast matrix from CLL
 data("sCLLex")
@@ -105,7 +107,8 @@ g_sd=sort(apply(exprSet,1,sd))
 g_var=sort(apply(exprSet,1,var))
 g_mad=tail(sort(apply(exprSet,1,mad)),50)
 
-## 9. According to the expression matrix g_mad obtained above, visualizing the matrix with heatmap.(heatmap,pheatmap, ggplot2)
+## 9. According to the expression matrix g_mad obtained above, visualizing the matrix with heatmap.
+   (heatmap,pheatmap, ggplot2)
 # heatmap
 chosen_genenames=names(g_mad)
 chosen_gene=exprSet[chosen_genenames,]
@@ -118,6 +121,105 @@ row.names(annotation_col)=colnames(chosen_gene)
 pheatmap(chosen_gene,annotation_col=annotation_col)
 # ggplot2
 C=as.data.frame(melt(chosen_gene))
-p1<-ggplot(C,aes(x=Var2 ,y=Var1)) # the outcome is an inmorm pure grey picture, but when I use another datafram, 
-                                    the outcome is a norm heatmap, don't figure out reasons
-p2<-ggplot(C,aes(x=Var2 ,y=Var1))+geom_tile(aes(fill=value))
+# the outcome is an innorm grey picture, but when I use another datafram,the outcome is a norm 
+  heatmap,don't figure out reasons
+p1<-ggplot(C,aes(x=Var2 ,y=Var1)) 
+p2<-p1+geom_tile(aes(fill=value))+
+scale_fill_gradient2(low = 'blue', high = 'red', mid = 'white') +
+xlab('Sample')+ylab('Gene')
+
+## 10. According to statistics criteria of mean,median,max,min,sd,var and mad, 
+       extract top 50 genes from the expression matrix. Using UpSetR to check 
+       overlap among them.
+g_mean=tail(sort(apply(exprSet,1,mean)), 50)
+g_median=tail(sort(apply(exprSet,1,median)), 50)
+g_max=tail(sort(apply(exprSet,1,max)), 50)
+g_min=tail(sort(apply(exprSet,1,min)), 50)
+g_sd=tail(sort(apply(exprSet,1,sd)), 50)
+g_var=tail(sort(apply(exprSet,1,var)), 50)
+g_mad=tail(sort(apply(exprSet,1,mad)), 50) 
+dat=data.frame(g_all=g_all,
+               g_mean=ifelse(g_all %in%  names(g_mean) ,1,0), # if gene in g_all is in g_mean, return 1, otherwise return 0
+               g_median=ifelse(g_all %in%  names(g_median) ,1,0),
+               g_max=ifelse(g_all %in%  names(g_max) ,1,0),
+               g_min=ifelse(g_all %in%  names(g_min) ,1,0),
+               g_sd=ifelse(g_all %in%  names(g_sd) ,1,0),
+               g_var=ifelse(g_all %in%  names(g_var) ,1,0),
+               g_mad=ifelse(g_all %in%  names(g_mad) ,1,0))
+ upset(dat,nsets = 7)
+ 
+ ## 11. Cluster analysis of the whole expression matrix
+ colnames(exprSet)=paste(group_list,1:22,sep='')
+ cluster=t(exprSet)
+ hc <- hclust(dist(cluster))
+ plot(as.dendrogram(hc))
+ 
+ ## PCA analysis
+ # method one
+ exprSet=exprs(sCLLex)
+ pc=prcomp(t(exprSet),scale=TRUE)
+ View(pc)
+ pcx=as.data.frame(pc$x)
+ pcr=cbind(samples=rownames(pcx),group_list, pcx)
+ p1=ggplot(pcr, aes(x=PC1, y=PC2,color=pcr$group_list))
+ p2=p1+geom_point(size=4,alpha=0.5)+
+    geom_text(aes(label=samples),hjust=-0.1, vjust=-0.3)+
+    stat_ellipse(type="norm",level = 0.8)+ # add ellipsein the graph
+    theme(panel.grid.major =element_blank(), # remove the outside grid
+    panel.grid.minor = element_line(color = "black"), # set the inner grid as black
+    panel.background = element_blank()) # remove the background    
+# method two
+BiocManager::install("ggfortify")
+library(ggfortify)
+df=as.data.frame(t(exprSet))
+df$group=group_list 
+autoplot(prcomp( df[,1:(ncol(df)-1)] ), data=df,colour = 'group', frame=TRUE, frame.type='norm')
+# method three
+BiocManager::install("FactoMineR")
+BiocManager::install("factoextra")
+library("FactoMineR")
+library("factoextra")
+df=as.data.frame(t(exprSet))
+dat.pca=PCA(df, graph = FALSE)
+fviz_pca_ind(dat.pca, geom.ind = c("point", "text"), # add both point and text
+col.ind = group_list, set color accrding to group_list
+addEllipses = TRUE,
+legend.title="groups")
+
+
+## 12. Using limma package to do variance analysis of expression matrix
+# making group matrix, representing progress and stable as 0 and 1, respectively.
+design=model.matrix(~0+factor(group_list))
+colnames(design)=levels(factor(group_list))
+rownames(design)=colnames(exprSet)
+# making contrast matrix
+contrast.matrix<-makeContrasts(paste0(unique(group_list),collapse = "-"),levels = design)
+# variance analysis
+fit=lmFit(exprSet,design)
+fit2=contrasts.fit(fit, contrast.matrix)
+fit2=eBayes(fit2) 
+tempOutput = topTable(fit2, coef=1, n=Inf)
+nrDEG = na.omit(tempOutput) 
+write.csv(nrDEG,"limma_notrend.results.csv",quote = F)
+
+
+## Making volcano plot
+DEG=nrDEG
+# set cutoff value
+logFC_cutoff=with(DEG,mean(abs( logFC)) + 2*sd(abs( logFC)))
+# judge whether DEG$P.Value < 0.05 and abs(DEG$logFC) > logFC_cutoff：
+      if FALSE, retuen "NOT';
+      if TRUE, judge whether DEG$logFC > logFC_cutoff:
+          if TRUE, return 'UP'
+          if FALSE, return 'DOWN'
+DEG$change = as.factor(ifelse(DEG$P.Value < 0.05 & abs(DEG$logFC) > logFC_cutoff,
+                              ifelse(DEG$logFC > logFC_cutoff ,'UP','DOWN'),'NOT')
+this_tile <- paste0('Cutoff for logFC is ',round(logFC_cutoff,3),
+                    '\nThe number of up gene is ',nrow(DEG[DEG$change =='UP',]) ,
+                    '\nThe number of down gene is ',nrow(DEG[DEG$change =='DOWN',])
+g = ggplot(data=DEG, aes(x=logFC, y=-log10(P.Value), color=change))+
+    theme_set(theme_bw())+ #set the theme as black-white(grey grid and whihte background)
+    scale_colour_manual(values = c('blue','black','red'))
+    
+
+## making scatter plot
