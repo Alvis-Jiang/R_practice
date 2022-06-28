@@ -154,7 +154,7 @@ dat=data.frame(g_all=g_all,
  hc <- hclust(dist(cluster))
  plot(as.dendrogram(hc))
  
- ## PCA analysis
+ ## 12.PCA analysis
  # method one
  exprSet=exprs(sCLLex)
  pc=prcomp(t(exprSet),scale=TRUE)
@@ -186,8 +186,29 @@ col.ind = group_list, set color accrding to group_list
 addEllipses = TRUE,
 legend.title="groups")
 
+## 13. t-test of expression matrix
+dat=exprSet
+# turn the group_list to factors--levels(progress and stable)
+group_list=as.factor(group_list)
+# divide the expression matrix into two parts--progress and stable
+group1 = which(group_list == levels(group_list)[1])
+group2 = which(group_list == levels(group_list)[2])
+dat1 = dat[, group1]
+dat2 = dat[, group2]
+dat = cbind(dat1, dat2)
+# obtain the p value of the two groups
+pvals = apply(exprSet, 1, function(x){t.test(as.numeric(x)~group_list)$p.value})
+# adjust the p value with bh
+p.adj = p.adjust(pvals, method = "BH")
+# caculate log2FC 
+avg_1 = rowMeans(dat1)
+avg_2 = rowMeans(dat2)
+log2FC = avg_2-avg_1
+DEG_t.test = cbind(avg_1, avg_2, log2FC, pvals, p.adj)
+DEG_t.test=DEG_t.test[order(DEG_t.test[,4]),]
+DEG_t.test=as.data.frame(DEG_t.test)
 
-## 12. Using limma package to do variance analysis of expression matrix
+## 14. Using limma package to do variance analysis of expression matrix
 # making group matrix, representing progress and stable as 0 and 1, respectively.
 design=model.matrix(~0+factor(group_list))
 colnames(design)=levels(factor(group_list))
@@ -222,4 +243,3 @@ g = ggplot(data=DEG, aes(x=logFC, y=-log10(P.Value), color=change))+
     scale_colour_manual(values = c('blue','black','red'))
     
 
-## making scatter plot
