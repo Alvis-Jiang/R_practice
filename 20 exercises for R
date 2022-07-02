@@ -224,7 +224,7 @@ nrDEG = na.omit(tempOutput)
 write.csv(nrDEG,"limma_notrend.results.csv",quote = F)
 
 
-## Making volcano plot
+# Making volcano plot
 DEG=nrDEG
 # set cutoff value
 logFC_cutoff=with(DEG,mean(abs( logFC)) + 2*sd(abs( logFC)))
